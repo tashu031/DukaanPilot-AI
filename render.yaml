@@ -1,10 +1,11 @@
+
 services:
   - type: web
     name: dukaanpilot-ai
     runtime: python
     region: oregon
     plan: free
-    buildCommand: "pip install -r backend/requirements.txt && cd frontend && npm install && npm run build && cd .."
+    buildCommand: "pip install -r backend/requirements.txt && cd frontend && npm ci --include=optional && npm run build && cd .."
     startCommand: "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /health
     autoDeploy: true
@@ -12,7 +13,7 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: NODE_VERSION
-        value: 20.12.2
+        value: 22.12.0
       - key: CORS_ORIGINS
         value: "*"
       - key: OLLAMA_BASE_URL
@@ -23,15 +24,6 @@ services:
         value: "dukaanpilot.db"
       - key: DEMO_MODE
         value: "true"
-    # NOTE ON STORAGE PERSISTENCE:
-    # Render's Free tier does NOT support persistent disks. This default blueprint runs
-    # on the Free tier using ephemeral SQLite storage (data resets on container sleep/redeploy).
-    #
-    # To configure persistent storage that survives container redeployments:
-    # 1. Change 'plan: free' to 'plan: starter' (paid plan required for Render disks)
-    # 2. Change DATABASE_PATH to '/var/data/dukaanpilot.db'
-    # 3. Uncomment the disk block below:
-    # disk:
-    #   name: dukaanpilot-data
-    #   mountPath: /var/data
-    #   sizeGB: 1
+    # Render Free uses ephemeral storage.
+    # SQLite data may be lost when the service restarts or redeploys.
+    # Persistent disks require a supported paid plan.
