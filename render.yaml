@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: dukaanpilot-ai
+    runtime: python
+    region: oregon
+    plan: free
+    buildCommand: "pip install -r backend/requirements.txt && cd frontend && npm install && npm run build && cd .."
+    startCommand: "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: NODE_VERSION
+        value: 20.12.2
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: OLLAMA_BASE_URL
+        value: "http://localhost:11434"
+      - key: OLLAMA_MODEL
+        value: "gemma2:2b"
+      - key: DATABASE_PATH
+        value: "/var/data/dukaanpilot.db"
+    disk:
+      name: dukaanpilot-data
+      mountPath: /var/data
+      sizeGB: 1
