@@ -1,7 +1,22 @@
+import html
 from datetime import datetime, timedelta
 from backend.app.database import get_db
 
+def esc(val) -> str:
+    """Safely escape user-controlled text for insertion into HTML."""
+    if val is None:
+        return ""
+    return html.escape(str(val), quote=True)
+
 def generate_invoice_for_order(order_id: int, due_days: int = 7, tax_percent: float = 0.0, discount_amount: float = 0.0, notes: str = None):
+    # 1. Validate input ranges
+    if due_days < 0 or due_days > 365:
+        raise ValueError("Payment due days must be between 0 and 365 days.")
+    if tax_percent < 0.0 or tax_percent > 100.0:
+        raise ValueError("Tax percent must be between 0.0% and 100.0%.")
+    if discount_amount < 0.0:
+        raise ValueError("Discount amount cannot be negative.")
+
     with get_db() as conn:
         cursor = conn.cursor()
         
@@ -22,6 +37,10 @@ def generate_invoice_for_order(order_id: int, due_days: int = 7, tax_percent: fl
         if existing:
             return get_invoice_details(existing["id"])
             
+        subtotal = float(order["total_amount"])
+        if discount_amount > subtotal:
+            raise ValueError(f"Discount amount ({discount_amount:.2f}) cannot exceed subtotal ({subtotal:.2f}).")
+
         # Create invoice number
         prefix = profile.get("invoice_prefix", "INV-")
         inv_number = f"{prefix}{order['order_number'].replace('ORD-', '')}"
@@ -29,9 +48,10 @@ def generate_invoice_for_order(order_id: int, due_days: int = 7, tax_percent: fl
         issue_date = datetime.now().strftime("%Y-%m-%d")
         due_date = (datetime.now() + timedelta(days=due_days)).strftime("%Y-%m-%d")
         
-        subtotal = float(order["total_amount"])
         tax_amount = round(subtotal * (tax_percent / 100.0), 2)
         total_amount = round(subtotal + tax_amount - discount_amount, 2)
+        if total_amount < 0.0:
+            raise ValueError("Calculated invoice total cannot be negative.")
         
         invoice_status = "Paid" if order["payment_status"] == "Paid" else "Issued"
         custom_notes = notes or profile.get("notes", "Thank you for your business!")
@@ -88,13 +108,42 @@ def render_invoice_html(invoice_id: int) -> str:
         
     biz = data["business"] or {}
     order = data["order"] or {}
-    currency = biz.get("currency_symbol", "₹")
+    currency = esc(biz.get("currency_symbol", "₹"))
+    
+    biz_name = esc(biz.get('business_name', 'Dukaan Boutique'))
+    biz_tagline = esc(biz.get('tagline', 'Handcrafted & Curated'))
+    biz_address = esc(biz.get('address', '')).replace('\n', '<br/>')
+    biz_phone = esc(biz.get('phone', ''))
+    biz_upi = esc(biz.get('upi_id', ''))
+    
+    inv_num = esc(data.get('invoice_number', ''))
+    inv_status = "Paid" if data.get('status') == 'Paid' else "Issued"
+    
+    cust_name = esc(order.get('customer_name', 'Customer'))
+    cust_contact = esc(order.get('customer_contact', 'N/A'))
+    cust_source = esc(order.get('source', 'Online Order'))
+    
+    issue_date = esc(data.get('issue_date', ''))
+    due_date = esc(data.get('due_date', ''))
+    order_ref = esc(order.get('order_number', 'N/A'))
+    
+    product_name = esc(order.get('product_name', 'Product Item'))
+    item_notes = esc(order.get('notes') or 'Standard delivery item')
+    footer_note = esc(data.get('notes') or biz.get('notes', 'Thank you for shopping with us!'))
+    
+    qty = int(order.get('quantity', 1))
+    unit_price = float(order.get('unit_price', 0.0))
+    line_total = float(order.get('total_amount', 0.0))
+    subtotal = float(data.get('subtotal', 0.0))
+    tax_amt = float(data.get('tax_amount', 0.0))
+    discount_amt = float(data.get('discount_amount', 0.0))
+    total_amt = float(data.get('total_amount', 0.0))
     
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Invoice {data['invoice_number']} - {biz.get('business_name', 'DukaanPilot')}</title>
+  <title>Invoice {inv_num} - {biz_name}</title>
   <style>
     body {{
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -275,19 +324,19 @@ def render_invoice_html(invoice_id: int) -> str:
   <div class="invoice-card">
     <div class="header">
       <div>
-        <div class="biz-brand">{biz.get('business_name', 'Dukaan Boutique')}</div>
-        <div class="biz-tagline">{biz.get('tagline', 'Handcrafted & Curated')}</div>
+        <div class="biz-brand">{biz_name}</div>
+        <div class="biz-tagline">{biz_tagline}</div>
         <div style="font-size: 13px; color: #475569; margin-top: 8px;">
-          {biz.get('address', '')}<br/>
-          WhatsApp / Phone: {biz.get('phone', '')}<br/>
-          UPI: <strong>{biz.get('upi_id', '')}</strong>
+          {biz_address}<br/>
+          WhatsApp / Phone: {biz_phone}<br/>
+          UPI: <strong>{biz_upi}</strong>
         </div>
       </div>
       <div class="inv-title">
         <h1>INVOICE</h1>
-        <div class="inv-number">{data['invoice_number']}</div>
+        <div class="inv-number">{inv_num}</div>
         <div style="margin-top: 12px;">
-          <span class="badge {'badge-paid' if data['status'] == 'Paid' else 'badge-issued'}">{data['status']}</span>
+          <span class="badge {'badge-paid' if inv_status == 'Paid' else 'badge-issued'}">{inv_status}</span>
         </div>
       </div>
     </div>
@@ -296,17 +345,17 @@ def render_invoice_html(invoice_id: int) -> str:
       <div class="meta-box">
         <h3>Billed To</h3>
         <p>
-          <strong style="font-size: 16px; color: #0f172a;">{order.get('customer_name', 'Customer')}</strong><br/>
-          Contact: {order.get('customer_contact', 'N/A')}<br/>
-          Source: {order.get('source', 'Online Order')}
+          <strong style="font-size: 16px; color: #0f172a;">{cust_name}</strong><br/>
+          Contact: {cust_contact}<br/>
+          Source: {cust_source}
         </p>
       </div>
       <div class="meta-box text-right">
         <h3>Invoice Details</h3>
         <p>
-          <strong>Issue Date:</strong> {data['issue_date']}<br/>
-          <strong>Payment Due:</strong> {data['due_date']}<br/>
-          <strong>Order Ref:</strong> {order.get('order_number', 'N/A')}
+          <strong>Issue Date:</strong> {issue_date}<br/>
+          <strong>Payment Due:</strong> {due_date}<br/>
+          <strong>Order Ref:</strong> {order_ref}
         </p>
       </div>
     </div>
@@ -323,12 +372,12 @@ def render_invoice_html(invoice_id: int) -> str:
       <tbody>
         <tr>
           <td>
-            <strong>{order.get('product_name', 'Product Item')}</strong>
-            <div style="font-size: 12px; color: #64748b; margin-top: 4px;">{order.get('notes') or 'Standard delivery item'}</div>
+            <strong>{product_name}</strong>
+            <div style="font-size: 12px; color: #64748b; margin-top: 4px;">{item_notes}</div>
           </td>
-          <td class="text-right">{order.get('quantity', 1)}</td>
-          <td class="text-right">{currency}{order.get('unit_price', 0.0):,.2f}</td>
-          <td class="text-right">{currency}{order.get('total_amount', 0.0):,.2f}</td>
+          <td class="text-right">{qty}</td>
+          <td class="text-right">{currency}{unit_price:,.2f}</td>
+          <td class="text-right">{currency}{line_total:,.2f}</td>
         </tr>
       </tbody>
     </table>
@@ -337,19 +386,19 @@ def render_invoice_html(invoice_id: int) -> str:
       <div class="summary-table">
         <div class="summary-row">
           <span>Subtotal</span>
-          <span>{currency}{data['subtotal']:,.2f}</span>
+          <span>{currency}{subtotal:,.2f}</span>
         </div>
-        {f'<div class="summary-row"><span>Tax</span><span>{currency}{data["tax_amount"]:,.2f}</span></div>' if data['tax_amount'] > 0 else ''}
-        {f'<div class="summary-row"><span>Discount</span><span>-{currency}{data["discount_amount"]:,.2f}</span></div>' if data['discount_amount'] > 0 else ''}
+        {f'<div class="summary-row"><span>Tax</span><span>{currency}{tax_amt:,.2f}</span></div>' if tax_amt > 0 else ''}
+        {f'<div class="summary-row"><span>Discount</span><span>-{currency}{discount_amt:,.2f}</span></div>' if discount_amt > 0 else ''}
         <div class="summary-row total">
           <span>Amount Due</span>
-          <span>{currency}{data['total_amount']:,.2f}</span>
+          <span>{currency}{total_amt:,.2f}</span>
         </div>
       </div>
     </div>
 
     <div class="footer-note">
-      <p>{data.get('notes') or biz.get('notes', 'Thank you for shopping with us!')}</p>
+      <p>{footer_note}</p>
       <p style="margin-top: 6px; font-size: 11px; color: #94a3b8;">Generated via DukaanPilot AI &bull; Less paperwork. More profit.</p>
     </div>
   </div>

@@ -1,5 +1,7 @@
 from datetime import datetime
-from fastapi import APIRouter, HTTPException
+from typing import Optional
+from fastapi import APIRouter, HTTPException, Header
+from backend.app import config
 from backend.app.database import get_db
 from backend.app.schemas import BusinessProfileResponse, BusinessProfileUpdate
 from backend.app.seed_data import seed_sample_data, reset_all_data
@@ -53,13 +55,23 @@ def update_profile(prof_in: BusinessProfileUpdate):
         
         cursor.execute("SELECT * FROM business_profile WHERE id = 1;")
         return dict(cursor.fetchone())
+def check_demo_mutation_allowed(x_admin_key: Optional[str] = None):
+    if config.DEMO_MODE:
+        if config.ADMIN_API_KEY and x_admin_key == config.ADMIN_API_KEY:
+            return
+        raise HTTPException(
+            status_code=403,
+            detail="Resetting or re-seeding demo data is disabled in public demo mode to preserve shared demonstration data."
+        )
 
 @router.post("/seed-data")
-def trigger_seed_data():
+def trigger_seed_data(x_admin_key: Optional[str] = Header(default=None)):
+    check_demo_mutation_allowed(x_admin_key)
     seed_sample_data()
     return {"message": "Sample boutique store data loaded successfully!"}
 
 @router.post("/reset-data")
-def trigger_reset_data():
+def trigger_reset_data(x_admin_key: Optional[str] = Header(default=None)):
+    check_demo_mutation_allowed(x_admin_key)
     reset_all_data()
     return {"message": "All store orders, expenses, and invoices cleared."}

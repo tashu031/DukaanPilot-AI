@@ -22,3 +22,7 @@ CORS_ORIGINS = [origin.strip() for origin in raw_cors.split(",") if origin.strip
 
 # Static Files (for Render production single-service deployment)
 STATIC_DIR = os.getenv("STATIC_DIR", str(WORKSPACE_DIR / "frontend" / "dist"))
+
+# Public Demo Mode & Safety
+DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() in ("true", "1", "yes")
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")

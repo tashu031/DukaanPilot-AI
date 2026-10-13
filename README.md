@@ -182,23 +182,32 @@ npm run build
 
 ## ☁️ 7. Render Deployment Guide
 
-The repository includes a ready-to-deploy `render.yaml` blueprint.
+The repository includes a production-ready `render.yaml` blueprint.
 
 ### Single-Service Architecture:
-When built, the FastAPI application automatically serves the production React bundle in `frontend/dist`. On Render, the entire application runs as a single web service.
+When built, the FastAPI application automatically serves the production React bundle in `frontend/dist`. On Render, the entire application runs as a single unified web service.
+
+### Storage Persistence Configuration:
+- **Free Tier Demo (Default in `render.yaml`)**:
+  - Uses `plan: free` with local SQLite storage (`DATABASE_PATH=dukaanpilot.db`).
+  - **Limitation**: Render's Free tier does **not** support persistent disks. On the Free tier, database records are **ephemeral** and will reset when the free container spins down or redeploys.
+- **Paid Starter Tier with Persistent Disk**:
+  - To configure storage that survives redeployments, upgrade `plan: free` to `plan: starter` in `render.yaml`, set `DATABASE_PATH=/var/data/dukaanpilot.db`, and uncomment the `disk:` block (mounted at `/var/data`).
+
+### Public Demo Safety:
+- `DEMO_MODE=true` is enabled in `render.yaml` for public cloud deployments.
+- This prevents anonymous web visitors from accidentally or maliciously clearing the shared demonstration data via `/api/settings/reset-data` or `/api/settings/seed-data`.
+- An optional `ADMIN_API_KEY` environment variable can be set to allow administrative resets via the `X-Admin-Key` request header.
 
 ### Steps to Deploy:
 1. Push this repository to GitHub or GitLab.
 2. In the [Render Dashboard](https://dashboard.render.com/), click **New** &rarr; **Blueprint**.
 3. Select your repository. Render will automatically detect `render.yaml`.
-4. Configure the persistent disk:
-   - Render mounts a 1GB persistent disk at `/var/data`.
-   - The environment variable `DATABASE_PATH=/var/data/dukaanpilot.db` ensures SQLite data persists across service redeployments.
-5. Click **Apply**. Render will run:
+4. Click **Apply**. Render will run:
    - **Build Command**: `pip install -r backend/requirements.txt && cd frontend && npm install && npm run build && cd ..`
    - **Start Command**: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
 
-> **Note on Cloud AI**: Because Ollama is a local GPU/CPU tool and is not available on free cloud containers, DukaanPilot AI automatically switches to its high-precision **Deterministic Business Intelligence Engine** on cloud deployments.
+> **Note on Cloud AI**: Because Ollama is a local GPU/CPU tool and is not available on free cloud containers, DukaanPilot AI automatically runs its high-precision **Deterministic Business Intelligence Engine** on cloud deployments.
 
 ---
 
@@ -208,25 +217,25 @@ When built, the FastAPI application automatically serves the production React bu
 DukaanPilot AI
 ├── backend/
 │   ├── app/
-│   │   ├── config.py             # Environment configurations
+│   │   ├── config.py             # Environment configurations (CORS, Demo Mode, Ollama)
 │   │   ├── database.py           # SQLite connection, schema & indexes
 │   │   ├── models.py             # Internal data definitions
-│   │   ├── schemas.py            # Pydantic request & response schemas
+│   │   ├── schemas.py            # Pydantic request & response schemas with range validators
 │   │   ├── seed_data.py          # Realistic boutique sample dataset
 │   │   ├── services/
 │   │   │   ├── ai_service.py     # Ollama Gemma client & rule-based NLP fallback
 │   │   │   ├── analytics_service.py # Deterministic SQL business calculations
-│   │   │   └── invoice_service.py   # Branded print-ready HTML invoice renderer
+│   │   │   └── invoice_service.py   # HTML-escaped print-ready invoice renderer
 │   │   └── routers/
 │   │       ├── orders.py         # Orders CRUD & filters
 │   │       ├── expenses.py       # Expenses CRUD & category breakdown
-│   │       ├── invoices.py       # Invoicing endpoints
+│   │       ├── invoices.py       # Invoicing endpoints & validation
 │   │       ├── analytics.py      # KPI summaries & recommendations
 │   │       ├── ai.py             # Order extraction & business assistant chat
-│   │       └── settings.py       # Profile & sample data management
+│   │       └── settings.py       # Profile & protected sample data management
 │   ├── main.py                   # FastAPI app entry point & SPA static server
 │   ├── requirements.txt          # Python dependencies
-│   └── tests/                    # Pytest test suite (10 passing tests)
+│   └── tests/                    # Pytest test suite (12 passing tests)
 ├── frontend/
 │   ├── src/
 │   │   ├── components/           # Sidebar, Navbar, StatCard, Badge, Modal, EmptyState
@@ -238,7 +247,7 @@ DukaanPilot AI
 │   ├── package.json
 │   ├── vite.config.ts
 │   └── tsconfig.app.json
-├── render.yaml                   # Production deployment manifest with persistent disk
+├── render.yaml                   # Production deployment manifest (Free demo / Starter disk)
 ├── .env.example                  # Environment variable template
 ├── .gitignore                    # Git ignore file
 └── README.md
@@ -246,11 +255,12 @@ DukaanPilot AI
 
 ---
 
-## 🔒 9. Limitations & Future Roadmap
+## 🔒 9. System Limitations & Architecture Scope
 
-1. **Local AI on Hosted Environments**: Running local Gemma requires Ollama installed on the host machine. Cloud hosted instances without Ollama operate in high-precision Deterministic Mode. Future releases will support optional API keys for hosted Gemma endpoints.
-2. **Multi-Tenancy**: The current MVP is designed for a single boutique business profile. Future updates can introduce multi-tenant user accounts with JWT authentication and isolated stores.
-3. **Automated WhatsApp Webhook**: Currently, users copy-paste chat notes into the AI parser. Future iterations could integrate WhatsApp Cloud API webhooks for direct order capture.
+1. **Single-User Architecture**: This MVP is designed for a single boutique store profile with isolated local SQLite storage. It does not provide multi-tenant user accounts, password authentication, or user isolation. Mutating records modifies the shared store instance.
+2. **Database Persistence on Free Tier**: Because Render Free does not support persistent disks, SQLite records are ephemeral unless deployed with Render's paid Starter plan and disk configuration.
+3. **Local AI vs Hosted Cloud**: Running local Gemma inference requires Ollama installed on the host machine. Cloud deployments without Ollama operate via the built-in deterministic rule engine.
+4. **CORS Specification Compliance**: When `CORS_ORIGINS=*`, credentialed requests are disabled to comply with standard browser specifications.
 
 ---
 

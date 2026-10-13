@@ -20,8 +20,18 @@ services:
       - key: OLLAMA_MODEL
         value: "gemma2:2b"
       - key: DATABASE_PATH
-        value: "/var/data/dukaanpilot.db"
-    disk:
-      name: dukaanpilot-data
-      mountPath: /var/data
-      sizeGB: 1
+        value: "dukaanpilot.db"
+      - key: DEMO_MODE
+        value: "true"
+    # NOTE ON STORAGE PERSISTENCE:
+    # Render's Free tier does NOT support persistent disks. This default blueprint runs
+    # on the Free tier using ephemeral SQLite storage (data resets on container sleep/redeploy).
+    #
+    # To configure persistent storage that survives container redeployments:
+    # 1. Change 'plan: free' to 'plan: starter' (paid plan required for Render disks)
+    # 2. Change DATABASE_PATH to '/var/data/dukaanpilot.db'
+    # 3. Uncomment the disk block below:
+    # disk:
+    #   name: dukaanpilot-data
+    #   mountPath: /var/data
+    #   sizeGB: 1

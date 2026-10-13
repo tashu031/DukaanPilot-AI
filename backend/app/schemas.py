@@ -134,9 +134,9 @@ class InventoryResponse(BaseModel):
 # Invoice Schemas
 class InvoiceCreate(BaseModel):
     order_id: int
-    due_days: int = 7
-    tax_percent: float = 0.0
-    discount_amount: float = 0.0
+    due_days: int = Field(default=7, ge=0, le=365, description="Due days window (0-365 days)")
+    tax_percent: float = Field(default=0.0, ge=0.0, le=100.0, description="Tax percentage (0-100%)")
+    discount_amount: float = Field(default=0.0, ge=0.0, description="Flat discount amount (non-negative)")
     notes: Optional[str] = None
 
 class InvoiceResponse(BaseModel):
