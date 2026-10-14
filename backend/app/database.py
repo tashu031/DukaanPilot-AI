@@ -1,23 +1,31 @@
+
 import sqlite3
 import os
 from contextlib import contextmanager
 from datetime import datetime
-from backend.app.config import DATABASE_PATH
+
+from backend.app.config import DATABASE_PATH, DEMO_MODE
+
 
 def get_connection():
-    # Ensure parent dir exists
+    """Create a SQLite connection and ensure its parent directory exists."""
     db_dir = os.path.dirname(DATABASE_PATH)
+
     if db_dir and not os.path.exists(db_dir):
         os.makedirs(db_dir, exist_ok=True)
-        
+
     conn = sqlite3.connect(DATABASE_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
+
     return conn
+
 
 @contextmanager
 def get_db():
+    """Provide a database connection with automatic commit or rollback."""
     conn = get_connection()
+
     try:
         yield conn
         conn.commit()
@@ -27,10 +35,12 @@ def get_db():
     finally:
         conn.close()
 
+
 def init_db():
+    """Initialize the schema and safely seed an empty demo database."""
     with get_db() as conn:
         cursor = conn.cursor()
-        
+
         # 1. Business Profile table
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS business_profile (
@@ -70,9 +80,15 @@ def init_db():
             updated_at TEXT NOT NULL
         );
         """)
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(order_status);")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_orders_payment_status ON orders(payment_status);")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(order_status);"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_orders_payment_status ON orders(payment_status);"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);"
+        )
 
         # 3. Expenses table
         cursor.execute("""
@@ -86,8 +102,12 @@ def init_db():
             created_at TEXT NOT NULL
         );
         """)
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category);")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category);"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);"
+        )
 
         # 4. Inventory table
         cursor.execute("""
@@ -104,7 +124,9 @@ def init_db():
             updated_at TEXT NOT NULL
         );
         """)
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_inventory_stock ON inventory(stock_quantity);")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_inventory_stock ON inventory(stock_quantity);"
+        )
 
         # 5. Invoices table
         cursor.execute("""
@@ -124,21 +146,61 @@ def init_db():
             FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
         );
         """)
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoices_order ON invoices(order_id);")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_invoices_order ON invoices(order_id);"
+        )
 
-        # Initialize default profile if missing
+        # Initialize the default business profile if missing.
         cursor.execute("SELECT id FROM business_profile WHERE id = 1;")
+
         if not cursor.fetchone():
             now = datetime.now().isoformat()
+
             cursor.execute("""
             INSERT INTO business_profile (
                 id, business_name, owner_name, tagline, email, phone, upi_id,
-                currency_symbol, currency_code, address, invoice_prefix, notes, updated_at
+                currency_symbol, currency_code, address, invoice_prefix, notes,
+                updated_at
             ) VALUES (
-                1, 'Aura Artisans', 'Aditi Sharma', 'Handcrafted Jewellery & Keepsakes',
-                'aditi@auraartisans.in', '+91 98200 12345', 'auraartisans@okaxis',
-                '₹', 'INR', 'Bandra West, Mumbai, MH 400050', 'AA-INV-',
-                'Handmade with love. For queries or exchanges, WhatsApp us at +91 98200 12345.',
+                1, 'Aura Artisans', 'Aditi Sharma',
+                'Handcrafted Jewellery & Keepsakes',
+                'aditi@auraartisans.in', '+91 98200 12345',
+                'auraartisans@okaxis', '₹', 'INR',
+                'Bandra West, Mumbai, MH 400050', 'AA-INV-',
+                'Handmade with love. For queries or exchanges, WhatsApp us at '
+                '+91 98200 12345.',
                 ?
             );
             """, (now,))
+
+    # Seed sample records only in demo mode and only if every business
+    # data table is empty. Never reset existing records during startup.
+    if DEMO_MODE:
+        with get_db() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT
+                    (SELECT COUNT(*) FROM orders) AS orders_count,
+                    (SELECT COUNT(*) FROM expenses) AS expenses_count,
+                    (SELECT COUNT(*) FROM inventory) AS inventory_count,
+                    (SELECT COUNT(*) FROM invoices) AS invoices_count;
+            """)
+
+            counts = cursor.fetchone()
+
+            should_seed = all(
+                counts[key] == 0
+                for key in (
+                    "orders_count",
+                    "expenses_count",
+                    "inventory_count",
+                    "invoices_count",
+                )
+            )
+
+        if should_seed:
+            # Local import avoids a circular import at module load time.
+            from backend.app.seed_data import seed_sample_data
+
+            seed_sample_data()
