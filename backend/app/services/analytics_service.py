@@ -68,7 +68,7 @@ def get_top_products(limit=5):
             FROM orders
             WHERE order_status != 'Cancelled'
             GROUP BY product_name
-            ORDER BY total_revenue DESC
+            ORDER BY SUM(total_amount) DESC, product_name ASC
             LIMIT ?;
         """, (limit,))
         

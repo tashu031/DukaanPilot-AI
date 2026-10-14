@@ -32,17 +32,43 @@ export const api = {
     return res.json();
   },
 
+
   async seedData(): Promise<{ message: string }> {
-    const res = await fetch(`${API_BASE}/settings/seed-data`, { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to seed sample data');
+    const res = await fetch(`${API_BASE}/settings/seed-data`, {
+      method: 'POST'
+    });
+
+    if (res.status === 403) {
+      throw new Error(
+        'Sample data loading is disabled in the public demo. Existing demo data is already available.'
+      );
+    }
+
+    if (!res.ok) {
+      throw new Error(`Failed to seed sample data (HTTP ${res.status})`);
+    }
+
     return res.json();
   },
 
   async resetData(): Promise<{ message: string }> {
-    const res = await fetch(`${API_BASE}/settings/reset-data`, { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to reset store data');
+    const res = await fetch(`${API_BASE}/settings/reset-data`, {
+      method: 'POST'
+    });
+
+    if (res.status === 403) {
+      throw new Error(
+        'Resetting data is disabled in the public demo to protect shared records.'
+      );
+    }
+
+    if (!res.ok) {
+      throw new Error(`Failed to reset store data (HTTP ${res.status})`);
+    }
+
     return res.json();
   },
+
 
   // Orders
   async getOrders(params?: { search?: string; status?: string; payment_status?: string }): Promise<Order[]> {

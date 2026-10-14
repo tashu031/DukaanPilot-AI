@@ -35,7 +35,7 @@ export const InvoicesPage: React.FC<InvoicesPageProps> = ({
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
-  
+
   // Generator form
   const [selectedOrderId, setSelectedOrderId] = useState<number | ''>('');
   const [taxPercent, setTaxPercent] = useState<number>(0);
@@ -156,10 +156,10 @@ export const InvoicesPage: React.FC<InvoicesPageProps> = ({
                       {inv.invoice_number}
                     </td>
                     <td className="py-3.5 px-4 font-medium text-slate-900">
-                      {inv.customer_name || 'Billed Customer'}
+                      {inv.order?.customer_name || inv.customer_name || 'Billed Customer'}
                     </td>
                     <td className="py-3.5 px-4 text-slate-600">
-                      {inv.product_name || 'Product Items'}
+                      {inv.order?.product_name || inv.product_name || 'Product Items'}
                     </td>
                     <td className="py-3.5 px-4 font-mono text-slate-500">
                       {inv.issue_date}

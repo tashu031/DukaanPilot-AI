@@ -93,13 +93,19 @@ def get_invoice_details(invoice_id: int):
 def list_invoices():
     with get_db() as conn:
         cursor = conn.cursor()
+
         cursor.execute("""
-            SELECT i.*, o.customer_name, o.product_name, o.order_number, o.payment_status as order_payment_status
+            SELECT i.*
             FROM invoices i
-            LEFT JOIN orders o ON i.order_id = o.id
             ORDER BY i.id DESC;
         """)
-        return [dict(r) for r in cursor.fetchall()]
+
+        invoice_rows = cursor.fetchall()
+
+    return [
+        get_invoice_details(row["id"])
+        for row in invoice_rows
+    ]
 
 def render_invoice_html(invoice_id: int) -> str:
     data = get_invoice_details(invoice_id)

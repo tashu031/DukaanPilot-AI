@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Sidebar, PageId } from './components/Sidebar';
 import { Navbar } from './components/Navbar';
@@ -94,50 +95,89 @@ export const App: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
-  // Seed sample boutique data
+  // Seed sample data with clear public-demo error handling.
   const handleSeedData = async () => {
+    if (isSeeding) return;
+
     setIsSeeding(true);
+
     try {
       await api.seedData();
       await fetchData();
-    } catch (err: any) {
-      alert(err.message || 'Failed to seed sample boutique data');
+      alert('Sample boutique data loaded successfully!');
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Unable to load sample data.';
+
+      const normalizedMessage = message.toLowerCase();
+
+      if (
+        normalizedMessage.includes('403') ||
+        normalizedMessage.includes('public demo') ||
+        normalizedMessage.includes('disabled')
+      ) {
+        alert(
+          'Sample data loading is disabled in the shared public demo to protect existing records. You can explore the available business data or create a new order.'
+        );
+      } else {
+        alert(message);
+      }
     } finally {
       setIsSeeding(false);
     }
   };
 
-  // Reset store data
+  // Reset store data. The backend remains responsible for enforcing
+  // authorization and protecting shared public-demo records.
   const handleResetData = async () => {
     try {
       await api.resetData();
       await fetchData();
-    } catch (err: any) {
-      alert(err.message || 'Failed to reset store data');
+      alert('Store data reset successfully.');
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Unable to reset store data.';
+
+      alert(message);
     }
   };
 
-  // Generate invoice for specific order
+  // Generate an invoice for a specific order.
   const handleGenerateInvoice = async (orderId: number) => {
     try {
       await api.createInvoice({ order_id: orderId });
       await fetchData();
       setCurrentPage('invoices');
-    } catch (err: any) {
-      alert(err.message || 'Failed to generate invoice');
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Failed to generate invoice.';
+
+      alert(message);
     }
   };
 
   const currencySymbol = profile?.currency_symbol || '₹';
+
   const unpaidOrders = orders.filter(
-    (o) => (o.payment_status === 'Unpaid' || o.payment_status === 'Partial') && o.order_status !== 'Cancelled'
+    (o) =>
+      (o.payment_status === 'Unpaid' ||
+        o.payment_status === 'Partial') &&
+      o.order_status !== 'Cancelled'
   );
 
-  // If viewing the Landing Page
+  // Show the public landing page.
   if (currentPage === 'landing') {
     return (
       <LandingPage
-        onLaunchApp={(targetPage = 'dashboard') => setCurrentPage(targetPage)}
+        onLaunchApp={(targetPage = 'dashboard') =>
+          setCurrentPage(targetPage)
+        }
         currencySymbol={currencySymbol}
       />
     );
